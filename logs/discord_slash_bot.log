@@ -1,8 +1,0 @@
-[2024-11-27 14:19:25,656] [INFO] Firebase initialized successfully.
-[2024-11-27 14:19:25,658] [WARNING] PyNaCl is not installed, voice will NOT be supported
-[2024-11-27 14:19:25,663] [INFO] logging in using static token
-[2024-11-27 14:19:27,277] [INFO] Shard ID None has connected to Gateway (Session ID: b4ea92ae048ae9ecf001a4eb93c5d052).
-[2024-11-27 14:19:30,151] [INFO] Channel configurations cached successfully.
-[2024-11-27 14:19:30,224] [INFO] Channel configurations cached successfully.
-[2024-11-27 14:19:30,664] [INFO] Slash commands synchronized successfully.
-[2024-11-27 14:19:30,665] [INFO] Logged in as Zenless#4179

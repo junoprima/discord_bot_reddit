@@ -225,42 +225,31 @@ async def change_name(interaction: discord.Interaction, channel: discord.TextCha
         await interaction.followup.send(f"Error changing name: {e}", ephemeral=True)
         logger.error(f"Error in change_name command: {e}")
 
-
-
 async def get_or_create_webhook(channel: discord.TextChannel, bot_name: str, bot_avatar: str):
-    """
-    Retrieve or create a webhook for the channel, then update Firestore.
-    """
     try:
-        if channel.id in channel_configs and channel_configs[channel.id].get("webhook_url"):
-            webhook_url = channel_configs[channel.id]["webhook_url"]
-            # Validate existing webhook
-            try:
-                async with aiohttp.ClientSession() as session:
-                    webhook = discord.Webhook.from_url(webhook_url, session=session)
-                    await webhook.fetch()  # Ensure it's valid
-                return webhook_url
-            except discord.NotFound:
-                logger.warning(f"Webhook not found for channel {channel.id}. Recreating...")
-
-        # Create a new webhook
+        # Check existing webhooks for the bot
         webhooks = await channel.webhooks()
         webhook = next((wh for wh in webhooks if wh.user == bot.user), None)
         if not webhook:
-            webhook = await channel.create_webhook(name=bot_name)
+            # Create a new webhook if none exist
+            webhook = await channel.create_webhook(name=bot_name, avatar=bot_avatar)
+            logger.info(f"Created a new webhook for channel {channel.name}.")
 
-        # Update Firestore and cache
         webhook_url = webhook.url
+
+        # Update Firestore
         await update_channel_config(str(channel.id), {
             "webhook_url": webhook_url,
             "bot_name": bot_name,
             "bot_avatar": bot_avatar,
         })
-        channel_configs[channel.id]["webhook_url"] = webhook_url
+        logger.info(f"Webhook URL for channel {channel.name} updated in Firestore: {webhook_url}")
         return webhook_url
     except Exception as e:
-        logger.error(f"Failed to create webhook for channel {channel.name}: {e}")
+        logger.error(f"Failed to create or retrieve webhook for channel {channel.name}: {e}")
         return None
+
+
 
 async def send_message_with_webhook(channel: discord.TextChannel, message: str, embeds=None):
     try:
@@ -339,39 +328,40 @@ async def send_custom_message(channel: discord.TextChannel, content=None, embed=
 @tree.command(name="test_message", description="Send a test message with per-channel customization")
 async def test_message(interaction: discord.Interaction):
     try:
-        # Defer the interaction to acknowledge the command
-        await interaction.response.defer(ephemeral=True)
+        await interaction.response.defer(ephemeral=True)  # Defer to allow longer processing time
 
-        # Fetch the channel-specific configuration from Firestore
-        docs = firestore_client.collection("channel_configs").where("channel_id", "==", str(interaction.channel_id)).stream()
-        for doc in docs:
-            config = doc.to_dict()
-            webhook_url = config.get("webhook_url")
-            bot_name = config.get("bot_name", "Default_Bot_Name")
-            bot_avatar = config.get("bot_avatar", None)
+        channel_id = str(interaction.channel_id)
+        config = channel_configs.get(channel_id)
 
+        if not config:
+            await interaction.followup.send("No configuration found for this channel.", ephemeral=True)
+            return
+
+        webhook_url = config.get("webhook_url")
+        bot_name = config.get("bot_name", bot.user.name)
+        bot_avatar = config.get("bot_avatar", None)
+
+        # Validate or recreate webhook if missing
+        if not webhook_url:
+            channel = interaction.channel
+            webhook_url = await get_or_create_webhook(channel, bot_name, bot_avatar)
             if not webhook_url:
-                await interaction.followup.send("No webhook found for this channel.", ephemeral=True)
+                await interaction.followup.send("Failed to create a webhook for this channel.", ephemeral=True)
                 return
 
-            # Use aiohttp to send the message via the webhook
-            async with aiohttp.ClientSession() as session:
-                payload = {
-                    "content": f"This is a test message for `{interaction.channel.name}` with per-channel customization!",
-                    "username": bot_name,
-                    "avatar_url": bot_avatar,
-                }
-                async with session.post(webhook_url, json=payload) as response:
-                    if response.status == 204:  # 204 No Content indicates success
-                        await interaction.followup.send("Test message sent successfully!", ephemeral=True)
-                    else:
-                        error_text = await response.text()
-                        await interaction.followup.send(f"Failed to send test message. Error: {error_text}", ephemeral=True)
-            return  # Exit after processing the first valid configuration
-
-        # If no configuration found
-        await interaction.followup.send("No configuration found for this channel.", ephemeral=True)
-
+        # Send a test message via the webhook
+        async with aiohttp.ClientSession() as session:
+            payload = {
+                "content": f"This is a test message for `{interaction.channel.name}`!",
+                "username": bot_name,
+                "avatar_url": bot_avatar,
+            }
+            async with session.post(webhook_url, json=payload) as response:
+                if response.status == 204:
+                    await interaction.followup.send("Test message sent successfully!", ephemeral=True)
+                else:
+                    error_text = await response.text()
+                    await interaction.followup.send(f"Failed to send test message. Error: {error_text}", ephemeral=True)
     except Exception as e:
         await interaction.followup.send(f"Error sending test message: {e}", ephemeral=True)
         logger.error(f"Error in test_message command: {e}")
@@ -380,28 +370,15 @@ async def test_message(interaction: discord.Interaction):
 
 @bot.event
 async def on_ready():
-    await load_channel_configs()
-    global channel_configs
-    try:
-        # Fetch channel configurations from Firestore
-        configs = firestore_client.collection("channel_configs").stream()
-        for config in configs:
-            data = config.to_dict()
-            channel_configs[data['channel_id']] = {
-                'bot_name': data.get('bot_name', bot.user.name),
-                'bot_avatar': data.get('bot_avatar', bot.user.avatar.url if bot.user.avatar else None)
-            }
-        logger.info("Channel configurations cached successfully.")
-    except Exception as e:
-        logger.error(f"Failed to cache channel configurations: {e}")
-
-    # Sync slash commands
+    logger.info(f"Logged in as {bot.user} ({bot.user.id})")
+    
+    # Sync slash commands with Discord
     try:
         await bot.tree.sync()
         logger.info("Slash commands synchronized successfully.")
     except Exception as e:
         logger.error(f"Failed to sync commands: {e}")
-    logger.info(f"Logged in as {bot.user}")
+
 
 
 @bot.event

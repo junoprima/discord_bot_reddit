@@ -1,2 +1,4 @@
 firebase_key.json
 .env
+logs/discord_slash_bot.log
+logs/reddit_feed_bot.log

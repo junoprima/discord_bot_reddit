@@ -240,15 +240,44 @@ async def fetch_reddit_and_post():
     except Exception as e:
         logger.error(f"Error in fetch_reddit_and_post: {e}")
 
+async def test_firestore():
+    try:
+        docs = firestore_client.collection("channel_configs").stream()
+        for doc in docs:
+            print(doc.id, doc.to_dict())
+        logger.info("Firestore integration test passed.")
+    except Exception as e:
+        logger.error(f"Error connecting to Firestore: {e}")
+        raise
+
+async def validate_webhook_in_firestore(channel_id: str):
+    try:
+        doc = firestore_client.collection("channel_configs").document(channel_id).get()
+        if doc.exists:
+            data = doc.to_dict()
+            webhook_url = data.get("webhook_url")
+            logger.info(f"Webhook for channel {channel_id}: {webhook_url}")
+            return webhook_url
+        else:
+            logger.warning(f"No webhook found for channel {channel_id} in Firestore.")
+            return None
+    except Exception as e:
+        logger.error(f"Error validating webhook in Firestore for channel {channel_id}: {e}")
+        return None
+
 
 @bot.event
 async def on_ready():
     global http_session
     if http_session is None:
         http_session = aiohttp.ClientSession()  # Create a single session
-        logger.info("HTTP session initialized.")
+
+    await test_firestore()  # Test Firestore connectivity
     logger.info(f"Logged in as {bot.user}")
+
     fetch_reddit_and_post.start()
+
+    
 
 @bot.event
 async def on_close():
