@@ -1,14 +1,16 @@
 
 # Discord Reddit Bot
 
-A Discord bot that fetches posts from specific subreddits and sends them to a Discord channel. This project is set up to run using Docker and can be deployed on DigitalOcean.
+A Discord bot that fetches posts from specific subreddits and sends them to Discord channels using webhooks. This project is containerized with Docker for seamless deployment and scalability.
+
+---
 
 ## Features
-- Fetches posts from specific subreddits.
-- Sends posts to Discord channels using webhooks.
-- Configurable via `.env` file.
-- Deployable with Docker for seamless containerization.
-- Includes logging for better debugging and monitoring.
+- Fetches and sends posts from specific subreddits to Discord channels.
+- Dynamically subscribes/unsubscribes to subreddits.
+- Configurable through environment variables.
+- Runs efficiently using Docker.
+- Includes enhanced logging for better debugging and monitoring.
 
 ---
 
@@ -17,19 +19,21 @@ A Discord bot that fetches posts from specific subreddits and sends them to a Di
 2. [Setup Instructions](#setup-instructions)
 3. [Environment Variables](#environment-variables)
 4. [Docker Usage](#docker-usage)
-5. [Deployment on DigitalOcean](#deployment-on-digitalocean)
-6. [Logs and Monitoring](#logs-and-monitoring)
+5. [Deployment](#deployment)
+6. [Logging and Monitoring](#logging-and-monitoring)
 7. [Contributing](#contributing)
 8. [License](#license)
 
 ---
 
 ## Prerequisites
+
 Ensure you have the following installed:
-1. Python 3.10+
+1. Python 3.9+ (if running locally)
 2. Docker and Docker Compose
-3. A DigitalOcean account (optional, for deployment)
-4. Git
+3. Firebase credentials for Firestore integration
+4. Reddit API credentials
+5. Discord bot token
 
 ---
 
@@ -41,40 +45,42 @@ Ensure you have the following installed:
    cd discord_bot_reddit
    ```
 
-2. **Install Python Dependencies**
-   (Only needed if running outside Docker)
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-3. **Add the `.env` File**
-   Create a `.env` file in the project root:
+2. **Prepare Environment Variables**
+   Create a `.env` file in the project root with the following variables:
    ```plaintext
    DISCORD_TOKEN=your_discord_token
-   CHANNEL_ID=your_channel_id
-   FIREBASE_CREDENTIALS=/path/to/firebase_key.json
+   FIREBASE_CREDENTIALS=/app/firebase_key.json
    REDDIT_CLIENT_ID=your_reddit_client_id
    REDDIT_CLIENT_SECRET=your_reddit_client_secret
    REDDIT_USER_AGENT=your_reddit_user_agent
    ```
 
-4. **Add the `firebase_key.json` File**
-   Place the Firebase credentials file in the root directory.
+3. **Add Firebase Credentials**
+   Place the `firebase_key.json` file in the root directory.
+
+4. **Run the Bot with Docker**
+   Build and run the container:
+   ```bash
+   docker compose up -d
+   ```
+
+5. **Stopping the Bot**
+   To stop the bot, use:
+   ```bash
+   docker compose down
+   ```
 
 ---
 
 ## Environment Variables
 
-Ensure the following variables are set in the `.env` file:
-
-| Variable              | Description                                     |
-|-----------------------|-------------------------------------------------|
-| `DISCORD_TOKEN`       | Your Discord bot token.                        |
-| `CHANNEL_ID`          | The ID of the Discord channel.                 |
-| `FIREBASE_CREDENTIALS`| Path to your Firebase JSON credentials.        |
-| `REDDIT_CLIENT_ID`    | Reddit API Client ID.                          |
-| `REDDIT_CLIENT_SECRET`| Reddit API Client Secret.                      |
-| `REDDIT_USER_AGENT`   | User agent for Reddit API requests.            |
+| Variable               | Description                                     |
+|------------------------|-------------------------------------------------|
+| `DISCORD_TOKEN`        | Your Discord bot token.                        |
+| `FIREBASE_CREDENTIALS` | Path to Firebase JSON credentials.             |
+| `REDDIT_CLIENT_ID`     | Reddit API Client ID.                          |
+| `REDDIT_CLIENT_SECRET` | Reddit API Client Secret.                      |
+| `REDDIT_USER_AGENT`    | User agent for Reddit API requests.            |
 
 ---
 
@@ -90,22 +96,23 @@ Ensure the following variables are set in the `.env` file:
    docker compose up -d
    ```
 
-3. **Stop the Docker Container**
-   ```bash
-   docker compose down
-   ```
-
-4. **Rebuild After Code Changes**
+3. **Rebuild After Code Changes**
    ```bash
    docker compose down
    docker compose build
    docker compose up -d
    ```
 
+4. **Monitor Docker Logs**
+   ```bash
+   docker logs reddit_feed_bot
+   ```
+
 ---
 
-## Deployment on DigitalOcean
+## Deployment
 
+### Using DigitalOcean
 1. **Create a Droplet**
    - Use Ubuntu 22.04 LTS as the base image.
    - Install Docker and Docker Compose.
@@ -120,29 +127,24 @@ Ensure the following variables are set in the `.env` file:
    cd discord_bot_reddit
    ```
 
-4. **Run Docker on DigitalOcean**
+4. **Run Docker**
    ```bash
    docker compose up -d
    ```
 
-5. **Monitor the Logs**
-   ```bash
-   docker logs <container_name>
-   ```
-
 ---
 
-## Logs and Monitoring
+## Logging and Monitoring
 
-1. Logs are stored in the `logs` directory inside the project.
-2. Use the following commands to check logs:
+1. Logs are stored in the `logs` directory.
+2. Use the following commands to view logs:
    - Docker logs:
      ```bash
-     docker logs <container_name>
+     docker logs reddit_feed_bot
      ```
    - Application logs:
      ```bash
-     tail -f logs/app.log
+     tail -f logs/reddit_feed_bot.log
      ```
 
 ---
@@ -161,5 +163,3 @@ We welcome contributions! Please follow these steps:
 ## License
 
 This project is licensed under the MIT License. See the LICENSE file for details.
-
----

@@ -8,22 +8,7 @@ services:
       - REDDIT_CLIENT_ID=${REDDIT_CLIENT_ID}
       - REDDIT_CLIENT_SECRET=${REDDIT_CLIENT_SECRET}
       - REDDIT_USER_AGENT=${REDDIT_USER_AGENT}
-    command: python reddit_feed_bot.py
-    volumes:
-      - ./firebase_key.json:/app/firebase_key.json
-      - ./logs:/app/logs  # Mount the logs directory
-    restart: always
-
-  discord_slash_bot:
-    build: .
-    container_name: discord_slash_bot
-    environment:
-      - DISCORD_TOKEN=${DISCORD_TOKEN}
-      - FIREBASE_CREDENTIALS=/app/firebase_key.json
-      - REDDIT_CLIENT_ID=${REDDIT_CLIENT_ID}
-      - REDDIT_CLIENT_SECRET=${REDDIT_CLIENT_SECRET}
-      - REDDIT_USER_AGENT=${REDDIT_USER_AGENT}
-    command: python discord_slash_bot.py
+    command: python bot.py  # Updated to the new consolidated file name
     volumes:
       - ./firebase_key.json:/app/firebase_key.json
       - ./logs:/app/logs  # Mount the logs directory

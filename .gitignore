@@ -2,3 +2,9 @@ firebase_key.json
 .env
 logs/discord_slash_bot.log
 logs/reddit_feed_bot.log
+discord_slash_bot.py
+discord_reddit_bot.py
+manual_check_last_post.py
+manual_check_timestamp.py
+manual_get_channel_config.py
+reddit_feed_bot.py
