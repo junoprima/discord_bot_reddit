@@ -7,4 +7,3 @@ discord_reddit_bot.py
 manual_check_last_post.py
 manual_check_timestamp.py
 manual_get_channel_config.py
-reddit_feed_bot.py
