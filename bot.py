@@ -361,15 +361,8 @@ async def create_embeds(post, subreddit_name, media_urls):
     """
     Creates Discord embeds for a Reddit post.
     """
-    default_avatar = "https://www.redditstatic.com/avatars/avatar_default_02_46A508.png"
-    author_name = f"u/{post.author.name}" if post.author else "Anonymous"
-    author_avatar = default_avatar
-
-    if post.author:
-        try:
-            author_avatar = await fetch_reddit_avatar(post.author.name)
-        except Exception as e:
-            logging.warning(f"Failed to fetch avatar for {post.author.name}. Using default avatar. Error: {e}")
+    author_avatar = await fetch_reddit_avatar(post.author.name) if post.author else \
+        "https://www.redditstatic.com/avatars/avatar_default_02_46A508.png"
 
     embeds = []
 
@@ -380,7 +373,7 @@ async def create_embeds(post, subreddit_name, media_urls):
                 url=f"https://www.reddit.com{post.permalink}",
                 color=discord.Color.blue()
             )
-            embed.set_author(name=author_name, icon_url=author_avatar)
+            embed.set_author(name=f"u/{post.author.name}" if post.author else "Anonymous", icon_url=author_avatar)
             embed.set_image(url=image_url)
             embed.set_footer(text=f"Subreddit: r/{subreddit_name}")
             embeds.append(embed)
@@ -391,7 +384,7 @@ async def create_embeds(post, subreddit_name, media_urls):
             description=post.selftext[:2048],  # Discord embed limit for description
             color=discord.Color.blue()
         )
-        embed.set_author(name=author_name, icon_url=author_avatar)
+        embed.set_author(name=f"u/{post.author.name}" if post.author else "Anonymous", icon_url=author_avatar)
         embed.set_footer(text=f"Subreddit: r/{subreddit_name}")
         embeds.append(embed)
     else:  # Fallback for unsupported or empty content
@@ -400,7 +393,7 @@ async def create_embeds(post, subreddit_name, media_urls):
             url=f"https://www.reddit.com{post.permalink}",
             color=discord.Color.blue()
         )
-        embed.set_author(name=author_name, icon_url=author_avatar)
+        embed.set_author(name=f"u/{post.author.name}" if post.author else "Anonymous", icon_url=author_avatar)
         embed.set_footer(text=f"Subreddit: r/{subreddit_name}")
         embeds.append(embed)
 
@@ -409,27 +402,18 @@ async def create_embeds(post, subreddit_name, media_urls):
 # Helper: Fetch Reddit avatar
 async def fetch_reddit_avatar(username):
     """
-    Fetches the Reddit avatar for the post author and sanitizes the URL.
+    Fetch the Reddit avatar for the post author using the Reddit API.
     """
     default_avatar = "https://www.redditstatic.com/avatars/avatar_default_02_46A508.png"
-    url = f"https://www.reddit.com/user/{username}/about.json"
+
     try:
-        async with http_session.get(url, headers={"User-Agent": "RedditBot"}) as response:
-            if response.status == 200:
-                data = await response.json()
-                avatar_url = data.get("data", {}).get("icon_img", default_avatar)
-                if avatar_url:
-                    # Sanitize the URL by removing query parameters
-                    sanitized_url = avatar_url.split('?')[0]
-                    logging.info(f"Fetched and sanitized avatar for {username}: {sanitized_url}")
-                    return sanitized_url
-                else:
-                    logging.warning(f"No avatar found for {username}. Using default avatar.")
-            else:
-                logging.warning(f"Failed to fetch avatar for {username} (HTTP {response.status}). Using default avatar.")
+        reddit = await initialize_reddit_client()
+        user = await reddit.redditor(username, fetch=True)  # Fetch the user data
+        avatar_url = getattr(user, "icon_img", default_avatar)  # Get the avatar URL
+        return avatar_url.split('?')[0]  # Clean URL
     except Exception as e:
-        logging.error(f"Error fetching avatar for {username}: {e}")
-    return default_avatar
+        logger.error(f"Error fetching avatar for {username}: {e}")
+        return default_avatar
 
 
 # Task: Fetch Reddit posts and post them to Discord
