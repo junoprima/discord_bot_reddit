@@ -69,9 +69,10 @@ async def initialize_reddit_client():
         reddit_client = asyncpraw.Reddit(
             client_id=REDDIT_CLIENT_ID,
             client_secret=REDDIT_CLIENT_SECRET,
-            user_agent=REDDIT_USER_AGENT,
+            user_agent=REDDIT_USER_AGENT
         )
     return reddit_client
+
 
 async def load_channel_configs():
     """Load all channel configurations from Firestore into memory."""
@@ -172,6 +173,8 @@ async def fetch_reddit_posts(subreddit_name, last_post_id=None):
                 logger.debug(f"Reached last processed post {last_post_id} in r/{subreddit_name}.")
                 break
             posts.append(post)
+
+            await asyncio.sleep(2)  # Delay between each request to avoid rate limits
 
         logger.info(f"Fetched {len(posts)} new posts for r/{subreddit_name}.")
         return posts
