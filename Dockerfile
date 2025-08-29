@@ -13,8 +13,8 @@ RUN apt-get update && apt-get install -y \
 COPY requirements.txt requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Create necessary directories
-RUN mkdir -p /app/logs /app/data
+# Create non-root user for security
+RUN useradd -m -u 1000 botuser
 
 # Copy application code
 COPY config/ ./config/
@@ -23,8 +23,8 @@ COPY services/ ./services/
 COPY utils/ ./utils/
 COPY bot.py ./bot.py
 
-# Create non-root user for security
-RUN useradd -m -u 1000 botuser && chown -R botuser:botuser /app
+# Create necessary directories and set permissions
+RUN mkdir -p /app/logs /app/data && chown -R botuser:botuser /app
 USER botuser
 
 # Health check
