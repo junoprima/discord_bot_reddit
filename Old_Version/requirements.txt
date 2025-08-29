@@ -1,5 +1,0 @@
-asyncpraw
-discord.py
-aiohttp
-firebase-admin
-python-dotenv
