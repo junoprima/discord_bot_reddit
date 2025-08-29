@@ -238,9 +238,13 @@ async def unsubscribe(interaction: discord.Interaction, channel: discord.TextCha
         await interaction.followup.send(f"Failed to unsubscribe: {e}", ephemeral=True)
 
 @bot.tree.command(name="change_avatar", description="Change the bot's avatar for a specific channel")
-@app_commands.describe(channel="The channel to update", image_url="URL of the new avatar image")
-async def change_avatar(interaction: discord.Interaction, channel: discord.TextChannel, image_url: str):
+@app_commands.describe(channel="The channel to update (optional, defaults to current channel)", image_url="URL of the new avatar image")
+async def change_avatar(interaction: discord.Interaction, image_url: str, channel: discord.TextChannel = None):
     await interaction.response.defer(ephemeral=True)
+    
+    # Default to current channel if not specified
+    if channel is None:
+        channel = interaction.channel
     
     try:
         channel_id = str(channel.id)
