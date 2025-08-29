@@ -177,3 +177,66 @@ class DatabaseManager:
             """.format(days))
             await db.commit()
             logger.info(f"Cleaned up post IDs older than {days} days")
+    
+    async def record_server_info(self, guild_data: Dict[str, Any]):
+        """Record Discord server information when bot joins"""
+        async with self.get_connection() as db:
+            await db.execute("""
+                INSERT OR REPLACE INTO server_analytics (
+                    guild_id, guild_name, member_count, total_channels,
+                    bot_added_at, last_updated, is_active
+                ) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 1)
+            """, (
+                guild_data['guild_id'],
+                guild_data['guild_name'], 
+                guild_data.get('member_count', 0),
+                guild_data.get('total_channels', 0)
+            ))
+            await db.commit()
+            logger.info(f"Recorded server info for {guild_data['guild_name']} ({guild_data['guild_id']})")
+    
+    async def update_channel_server_info(self, channel_id: str, server_data: Dict[str, Any]):
+        """Update server information for a specific channel"""
+        async with self.get_connection() as db:
+            await db.execute("""
+                UPDATE channel_configs 
+                SET guild_id = ?, guild_name = ?, channel_name = ?,
+                    server_owner_id = ?, server_owner_name = ?, server_member_count = ?,
+                    server_created_at = ?, added_by_user = ?, server_region = ?,
+                    server_verification_level = ?, total_server_channels = ?,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE channel_id = ?
+            """, (
+                server_data.get('guild_id'),
+                server_data.get('guild_name'),
+                server_data.get('channel_name'),
+                server_data.get('server_owner_id'),
+                server_data.get('server_owner_name'),
+                server_data.get('server_member_count'),
+                server_data.get('server_created_at'),
+                server_data.get('added_by_user'),
+                server_data.get('server_region'),
+                server_data.get('server_verification_level'),
+                server_data.get('total_server_channels'),
+                channel_id
+            ))
+            await db.commit()
+            logger.debug(f"Updated server info for channel {channel_id}")
+    
+    async def get_server_analytics(self) -> List[Dict[str, Any]]:
+        """Get server analytics data"""
+        async with self.get_connection() as db:
+            cursor = await db.execute("""
+                SELECT sa.*, 
+                       COUNT(cc.channel_id) as active_subscriptions
+                FROM server_analytics sa
+                LEFT JOIN channel_configs cc ON sa.guild_id = cc.guild_id
+                WHERE sa.is_active = 1
+                GROUP BY sa.guild_id
+                ORDER BY sa.member_count DESC
+            """)
+            
+            columns = [description[0] for description in cursor.description]
+            rows = await cursor.fetchall()
+            
+            return [dict(zip(columns, row)) for row in rows]

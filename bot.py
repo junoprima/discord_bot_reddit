@@ -84,36 +84,50 @@ class RedditBot(commands.Bot):
     async def _record_server_info(self, guild):
         """Record Discord server information to database"""
         try:
-            # Get server data
+            # Get comprehensive server data
             server_data = {
                 'guild_id': str(guild.id),
                 'guild_name': guild.name,
                 'member_count': guild.member_count,
-                'owner_id': str(guild.owner_id) if guild.owner_id else None,
-                'owner_name': guild.owner.name if guild.owner else None,
+                'server_owner_id': str(guild.owner_id) if guild.owner_id else None,
+                'server_owner_name': guild.owner.name if guild.owner else None,
                 'server_created_at': guild.created_at.isoformat(),
-                'verification_level': guild.verification_level.value,
-                'total_channels': len(guild.channels),
+                'server_region': str(guild.preferred_locale) if guild.preferred_locale else None,
+                'server_verification_level': guild.verification_level.value,
+                'total_server_channels': len(guild.channels),
             }
             
-            # Count subscriptions in this server
+            # Count current subscriptions in this server
             subscriptions = sum(1 for config in self.channel_configs.values() 
                               if config.get('guild_id') == str(guild.id))
-            server_data['total_subscriptions'] = subscriptions
             
-            # Update database (you'll need to add this method to DatabaseManager)
-            await self._update_server_record(server_data)
+            # Record to server analytics table
+            analytics_data = {
+                'guild_id': server_data['guild_id'],
+                'guild_name': server_data['guild_name'],
+                'member_count': server_data['member_count'],
+                'total_channels': server_data['total_server_channels']
+            }
+            
+            await self.db_manager.record_server_info(analytics_data)
+            
+            # Update any existing channel configs with server info
+            for channel_id, config in self.channel_configs.items():
+                if config.get('guild_id') == str(guild.id):
+                    # Get channel details
+                    channel = guild.get_channel(int(channel_id))
+                    if channel:
+                        server_data['channel_name'] = channel.name
+                        await self.db_manager.update_channel_server_info(channel_id, server_data)
+            
+            logger.info(f"📊 Recorded server info: {guild.name} ({guild.member_count} members, {len(guild.channels)} channels)")
             
         except Exception as e:
             logger.error(f"Error recording server info for {guild.name}: {e}")
     
     async def _update_server_record(self, server_data):
-        """Update server record in database"""
-        try:
-            # This is a simplified version - you'd implement this in DatabaseManager
-            logger.debug(f"Recording server: {server_data['guild_name']} ({server_data['member_count']} members)")
-        except Exception as e:
-            logger.error(f"Error updating server record: {e}")
+        """Update server record in database - deprecated, using record_server_info instead"""
+        logger.debug(f"Server record updated: {server_data.get('guild_name', 'Unknown')}")
     
     async def on_guild_join(self, guild):
         """Called when bot joins a new server"""
@@ -293,7 +307,7 @@ async def subscribe(interaction: discord.Interaction, subreddit: str, channel: d
             )
             return
         
-        # Update database and cache with server info
+        # Update database and cache with comprehensive server info
         config_data = {
             "subreddit": subreddit,
             "webhook_url": webhook_url,
@@ -303,6 +317,13 @@ async def subscribe(interaction: discord.Interaction, subreddit: str, channel: d
             "guild_name": channel.guild.name,
             "channel_name": channel.name,
             "added_by_user": f"{interaction.user.name}#{interaction.user.discriminator}",
+            "server_owner_id": str(channel.guild.owner_id) if channel.guild.owner_id else None,
+            "server_owner_name": channel.guild.owner.name if channel.guild.owner else None,
+            "server_member_count": channel.guild.member_count,
+            "server_created_at": channel.guild.created_at.isoformat(),
+            "server_region": str(channel.guild.preferred_locale) if channel.guild.preferred_locale else None,
+            "server_verification_level": channel.guild.verification_level.value,
+            "total_server_channels": len(channel.guild.channels),
         }
         
         await bot.update_channel_config_cache(str(channel.id), config_data)
