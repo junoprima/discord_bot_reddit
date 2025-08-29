@@ -1,7 +1,7 @@
 services:
   reddit_feed_bot:
     build: .
-    container_name: reddit_feed_bot_dev
+    container_name: reddit_feed_bot
     environment:
       - DISCORD_TOKEN=${DISCORD_TOKEN}
       - REDDIT_CLIENT_ID=${REDDIT_CLIENT_ID}
