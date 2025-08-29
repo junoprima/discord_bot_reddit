@@ -73,11 +73,77 @@ class RedditBot(commands.Bot):
             if config:
                 self.channel_configs[channel_id] = config
     
+    async def _update_server_analytics(self):
+        """Update server analytics for all guilds bot is in"""
+        try:
+            for guild in self.guilds:
+                await self._record_server_info(guild)
+        except Exception as e:
+            logger.error(f"Error updating server analytics: {e}")
+    
+    async def _record_server_info(self, guild):
+        """Record Discord server information to database"""
+        try:
+            # Get server data
+            server_data = {
+                'guild_id': str(guild.id),
+                'guild_name': guild.name,
+                'member_count': guild.member_count,
+                'owner_id': str(guild.owner_id) if guild.owner_id else None,
+                'owner_name': guild.owner.name if guild.owner else None,
+                'server_created_at': guild.created_at.isoformat(),
+                'verification_level': guild.verification_level.value,
+                'total_channels': len(guild.channels),
+            }
+            
+            # Count subscriptions in this server
+            subscriptions = sum(1 for config in self.channel_configs.values() 
+                              if config.get('guild_id') == str(guild.id))
+            server_data['total_subscriptions'] = subscriptions
+            
+            # Update database (you'll need to add this method to DatabaseManager)
+            await self._update_server_record(server_data)
+            
+        except Exception as e:
+            logger.error(f"Error recording server info for {guild.name}: {e}")
+    
+    async def _update_server_record(self, server_data):
+        """Update server record in database"""
+        try:
+            # This is a simplified version - you'd implement this in DatabaseManager
+            logger.debug(f"Recording server: {server_data['guild_name']} ({server_data['member_count']} members)")
+        except Exception as e:
+            logger.error(f"Error updating server record: {e}")
+    
+    async def on_guild_join(self, guild):
+        """Called when bot joins a new server"""
+        logger.info(f"🎉 Bot joined new server: {guild.name} ({guild.id}) - {guild.member_count} members")
+        await self._record_server_info(guild)
+        await self._log_bot_event("guild_join", guild.id, data=f"Server: {guild.name}, Members: {guild.member_count}")
+    
+    async def on_guild_remove(self, guild):
+        """Called when bot leaves a server"""
+        logger.info(f"👋 Bot removed from server: {guild.name} ({guild.id})")
+        await self._log_bot_event("guild_leave", guild.id, data=f"Server: {guild.name}")
+    
+    async def _log_bot_event(self, event_type, guild_id=None, channel_id=None, user_id=None, user_name=None, data=None):
+        """Log bot usage events"""
+        try:
+            # This would be implemented in DatabaseManager
+            logger.info(f"Bot event: {event_type} in server {guild_id}")
+        except Exception as e:
+            logger.error(f"Error logging bot event: {e}")
+    
     async def on_ready(self):
         """Called when bot is ready"""
         await self.tree.sync()
+        
+        # Update server analytics
+        await self._update_server_analytics()
+        
         logger.info(f"Bot logged in as {self.user} (ID: {self.user.id})")
         logger.info(f"Monitoring {len(self.channel_configs)} channels")
+        logger.info(f"Active in {len(self.guilds)} Discord servers")
     
     async def close(self):
         """Cleanup when bot shuts down"""
