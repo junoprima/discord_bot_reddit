@@ -1,10 +1,41 @@
-firebase_key.json
+# Database files
+reddit_bot.db
+*.db
+*.sqlite
+*.sqlite3
+
+# Environment files
 .env
-logs/discord_slash_bot.log
-logs/reddit_feed_bot.log
+.env.local
+.env.production
+
+# Logs
+logs/
+*.log
+
+# Data directory
+data/
+
+# Firebase credentials
+firebase_key.json
+*firebase*.json
+
+# Old/Manual scripts (archived)
 discord_slash_bot.py
 discord_reddit_bot.py
 manual_check_last_post.py
 manual_check_timestamp.py
 manual_get_channel_config.py
-logs/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
