@@ -63,8 +63,6 @@ class DiscordWebhookService:
                 webhook = await channel.create_webhook(name=bot_name, avatar=avatar_bytes)
                 logger.info(f"Created new webhook for channel {channel.name}")
             
-            # Update database with webhook URL
-            await self.db_manager.update_channel_config(str(channel.id), {"webhook_url": webhook.url})
             return webhook.url
             
         except discord.errors.Forbidden:
