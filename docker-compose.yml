@@ -1,7 +1,7 @@
 services:
   reddit_feed_bot:
     build: .
-    container_name: reddit_feed_bot
+    container_name: reddit_feed_bot_dev
     environment:
       - DISCORD_TOKEN=${DISCORD_TOKEN}
       - REDDIT_CLIENT_ID=${REDDIT_CLIENT_ID}
@@ -12,7 +12,7 @@ services:
       - FETCH_INTERVAL_MINUTES=1
       - MAX_POSTS_PER_FETCH=10
       - LOG_LEVEL=INFO
-    command: python bot_new.py
+    command: python bot.py
     volumes:
       - ./data:/app/data          # SQLite database storage
       - ./logs:/app/logs          # Log files

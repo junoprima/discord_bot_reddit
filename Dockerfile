@@ -3,11 +3,11 @@ FROM python:3.11-slim
 # Set working directory
 WORKDIR /app
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    gcc \
-    && rm -rf /var/lib/apt/lists/* \
-    && apt-get clean
+# Install system dependencies with fixed package sources
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements first for better caching
 COPY requirements.txt requirements.txt
@@ -24,7 +24,9 @@ COPY utils/ ./utils/
 COPY bot.py ./bot.py
 
 # Create necessary directories and set permissions
-RUN mkdir -p /app/logs /app/data && chown -R botuser:botuser /app
+RUN mkdir -p /app/logs /app/data && \
+    chown -R botuser:botuser /app && \
+    chmod -R 755 /app/logs /app/data
 USER botuser
 
 # Health check

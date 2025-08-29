@@ -298,6 +298,9 @@ async def main():
     except Exception as e:
         logger.critical(f"Failed to start bot: {e}")
         raise
+    finally:
+        if not bot.is_closed():
+            await bot.close()
 
 if __name__ == "__main__":
     try:
