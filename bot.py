@@ -199,12 +199,16 @@ async def subscribe(interaction: discord.Interaction, subreddit: str, channel: d
             )
             return
         
-        # Update database and cache
+        # Update database and cache with server info
         config_data = {
             "subreddit": subreddit,
             "webhook_url": webhook_url,
             "bot_name": subreddit_details["name"],
             "bot_avatar": subreddit_details["icon"],
+            "guild_id": str(channel.guild.id),
+            "guild_name": channel.guild.name,
+            "channel_name": channel.name,
+            "added_by_user": f"{interaction.user.name}#{interaction.user.discriminator}",
         }
         
         await bot.update_channel_config_cache(str(channel.id), config_data)
