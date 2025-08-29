@@ -206,14 +206,42 @@ class RedditBot(commands.Bot):
                     post, subreddit, media_urls, self.reddit_service
                 )
                 
-                # Send via webhook
-                await self.webhook_service.send_webhook_message(
+                # Send via webhook with auto-recreation on 404
+                webhook_success = await self.webhook_service.send_webhook_message(
                     webhook_url=webhook_url,
                     embeds=embeds,
                     username=config.get("bot_name", f"r/{subreddit}"),
                     avatar_url=config.get("bot_avatar"),
                     post_link=f"https://www.reddit.com{post.permalink}"
                 )
+                
+                # If webhook failed with 404, recreate it and try again
+                if not webhook_success:
+                    logger.warning(f"Webhook failed for channel {channel_id}, attempting recreation...")
+                    new_webhook_url = await self.webhook_service.validate_and_recreate_webhook(
+                        channel_id, self, config
+                    )
+                    
+                    if new_webhook_url:
+                        # Update cache with new webhook URL
+                        self.channel_configs[channel_id]["webhook_url"] = new_webhook_url
+                        
+                        # Retry sending with new webhook
+                        webhook_success = await self.webhook_service.send_webhook_message(
+                            webhook_url=new_webhook_url,
+                            embeds=embeds,
+                            username=config.get("bot_name", f"r/{subreddit}"),
+                            avatar_url=config.get("bot_avatar"),
+                            post_link=f"https://www.reddit.com{post.permalink}"
+                        )
+                        
+                        if webhook_success:
+                            logger.info(f"Successfully sent message after webhook recreation for channel {channel_id}")
+                        else:
+                            logger.error(f"Failed to send message even after webhook recreation for channel {channel_id}")
+                    else:
+                        logger.error(f"Could not recreate webhook for channel {channel_id}")
+                        continue  # Skip this post if webhook can't be recreated
                 
                 # Update tracking
                 await self.db_manager.add_sent_post_id(channel_id, post.id)

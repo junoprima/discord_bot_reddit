@@ -25,12 +25,13 @@ services:
           memory: 128M
 
   # SQLite Web UI for database management
-  # Access at http://your-server-ip:8080
+  # SECURITY: Now only accessible via localhost tunnel, not exposed to internet
+  # Access via: ssh -L 8080:localhost:8080 user@your-server-ip, then http://localhost:8080
   sqlite-web:
     image: coleifer/sqlite-web
     container_name: reddit_bot_db_ui
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"  # SECURITY: Bind to localhost only
     volumes:
       - ./data:/data
     command: sqlite_web -H 0.0.0.0 -x /data/reddit_bot.db

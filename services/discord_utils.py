@@ -80,7 +80,7 @@ class DiscordWebhookService:
         avatar_url: str = None,
         post_link: str = None
     ):
-        """Send message via Discord webhook"""
+        """Send message via Discord webhook with auto-recreation on 404"""
         try:
             await self.initialize()
             
@@ -109,12 +109,63 @@ class DiscordWebhookService:
             async with self.http_session.post(webhook_url, json=payload) as response:
                 if response.status in {200, 204}:
                     logger.debug(f"Message sent successfully via webhook")
+                    return True
+                elif response.status == 404:
+                    # Webhook was deleted, return False to trigger recreation
+                    error_text = await response.text()
+                    logger.warning(f"Webhook not found (404). Will attempt to recreate. Body: {error_text}")
+                    return False
                 else:
                     error_text = await response.text()
                     logger.error(f"Failed to send webhook message. Status: {response.status}, Body: {error_text}")
+                    return False
                     
         except Exception as e:
             logger.error(f"Error sending webhook message: {e}")
+            return False
+    
+    async def validate_and_recreate_webhook(
+        self,
+        channel_id: str,
+        bot_instance,
+        config: Dict[str, Any]
+    ) -> Optional[str]:
+        """Validate webhook exists, recreate if needed"""
+        try:
+            # Get the Discord channel
+            channel = bot_instance.get_channel(int(channel_id))
+            if not channel:
+                logger.error(f"Channel {channel_id} not found")
+                return None
+            
+            # Extract config data
+            subreddit = config.get("subreddit")
+            bot_name = config.get("bot_name", f"r/{subreddit}")
+            bot_avatar = config.get("bot_avatar")
+            
+            logger.info(f"Recreating webhook for channel {channel.name} (r/{subreddit})")
+            
+            # Create new webhook
+            new_webhook_url = await self.get_or_create_webhook(
+                channel=channel,
+                bot_user=bot_instance.user,
+                subreddit_name=subreddit,
+                bot_name=bot_name,
+                bot_avatar=bot_avatar
+            )
+            
+            if new_webhook_url:
+                # Update database with new webhook URL
+                await self.db_manager.update_channel_config(channel_id, {"webhook_url": new_webhook_url})
+                logger.info(f"Successfully recreated webhook for channel {channel.name}")
+                return new_webhook_url
+            else:
+                logger.error(f"Failed to recreate webhook for channel {channel.name}")
+                return None
+                
+        except Exception as e:
+            logger.error(f"Error recreating webhook for channel {channel_id}: {e}")
+            return None
 
 class EmbedBuilder:
     """Utility class for building Discord embeds for Reddit posts"""
