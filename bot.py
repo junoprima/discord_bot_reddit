@@ -171,9 +171,13 @@ class RedditBot(commands.Bot):
 bot = RedditBot()
 
 @bot.tree.command(name="subscribe", description="Subscribe a channel to a subreddit")
-@app_commands.describe(subreddit="The subreddit to subscribe to", channel="The channel to post updates in")
-async def subscribe(interaction: discord.Interaction, subreddit: str, channel: discord.TextChannel):
+@app_commands.describe(subreddit="The subreddit to subscribe to", channel="The channel to post updates in (optional, defaults to current channel)")
+async def subscribe(interaction: discord.Interaction, subreddit: str, channel: discord.TextChannel = None):
     await interaction.response.defer(ephemeral=True)
+    
+    # Default to current channel if not specified
+    if channel is None:
+        channel = interaction.channel
     
     try:
         # Fetch subreddit details
