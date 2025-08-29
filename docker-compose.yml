@@ -24,16 +24,16 @@ services:
         reservations:
           memory: 128M
 
-  # Optional: SQLite Web UI for database management
-  # Uncomment to enable web interface at http://your-server:8080
-  # sqlite-web:
-  #   image: coleifer/sqlite-web
-  #   container_name: reddit_bot_db_ui
-  #   ports:
-  #     - "8080:8080"
-  #   volumes:
-  #     - ./data:/data
-  #   command: sqlite_web -H 0.0.0.0 -x /data/reddit_bot.db
-  #   restart: unless-stopped
-  #   depends_on:
-  #     - reddit_feed_bot
+  # SQLite Web UI for database management
+  # Access at http://your-server-ip:8080
+  sqlite-web:
+    image: coleifer/sqlite-web
+    container_name: reddit_bot_db_ui
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./data:/data
+    command: sqlite_web -H 0.0.0.0 -x /data/reddit_bot.db
+    restart: unless-stopped
+    depends_on:
+      - reddit_feed_bot
