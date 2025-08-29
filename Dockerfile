@@ -22,6 +22,10 @@ COPY database/ ./database/
 COPY services/ ./services/
 COPY utils/ ./utils/
 COPY bot.py ./bot.py
+COPY migrate_firestore_to_sqlite.py ./migrate_firestore_to_sqlite.py
+COPY verify_migration.py ./verify_migration.py
+COPY show_current_settings.py ./show_current_settings.py
+COPY check_firestore_simple.py ./check_firestore_simple.py
 
 # Create necessary directories and set permissions
 RUN mkdir -p /app/logs /app/data && \
