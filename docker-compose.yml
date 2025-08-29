@@ -4,12 +4,22 @@ services:
     container_name: reddit_feed_bot
     environment:
       - DISCORD_TOKEN=${DISCORD_TOKEN}
-      - FIREBASE_CREDENTIALS=/app/firebase_key.json
       - REDDIT_CLIENT_ID=${REDDIT_CLIENT_ID}
       - REDDIT_CLIENT_SECRET=${REDDIT_CLIENT_SECRET}
       - REDDIT_USER_AGENT=${REDDIT_USER_AGENT}
-    command: python bot.py  # Updated to the new consolidated file name
+      - DATABASE_PATH=/app/data/reddit_bot.db
+      - LOG_FILE=/app/logs/reddit_feed_bot.log
+      - FETCH_INTERVAL_MINUTES=1
+      - MAX_POSTS_PER_FETCH=10
+      - LOG_LEVEL=INFO
+    command: python bot_new.py
     volumes:
-      - ./firebase_key.json:/app/firebase_key.json
-      - ./logs:/app/logs  # Mount the logs directory
+      - ./data:/app/data          # SQLite database storage
+      - ./logs:/app/logs          # Log files
     restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 256M            # Memory limit for your 1GB server
+        reservations:
+          memory: 128M

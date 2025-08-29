@@ -1,17 +1,35 @@
-# Use Python as the base image
-FROM python:3.9-slim
+FROM python:3.11-slim
 
-# Set the working directory
+# Set working directory
 WORKDIR /app
 
-# Copy application files
-COPY . /app
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    gcc \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
 
-# Install dependencies
+# Copy requirements first for better caching
+COPY requirements_new.txt requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Expose port (optional)
-EXPOSE 5000
+# Create necessary directories
+RUN mkdir -p /app/logs /app/data
 
-# Start the bot
-CMD ["python", "bot.py"]  # Updated to new consolidated file
+# Copy application code
+COPY config/ ./config/
+COPY database/ ./database/
+COPY services/ ./services/
+COPY utils/ ./utils/
+COPY bot_new.py ./bot_new.py
+
+# Create non-root user for security
+RUN useradd -m -u 1000 botuser && chown -R botuser:botuser /app
+USER botuser
+
+# Health check
+HEALTHCHECK --interval=60s --timeout=10s --start-period=20s --retries=3 \
+    CMD python -c "import sqlite3; sqlite3.connect('/app/data/reddit_bot.db').execute('SELECT 1')" || exit 1
+
+# Run the bot
+CMD ["python", "bot_new.py"]
