@@ -10,7 +10,7 @@ RUN apt-get update && apt-get install -y \
     && apt-get clean
 
 # Copy requirements first for better caching
-COPY requirements_new.txt requirements.txt
+COPY requirements.txt requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Create necessary directories
@@ -21,7 +21,7 @@ COPY config/ ./config/
 COPY database/ ./database/
 COPY services/ ./services/
 COPY utils/ ./utils/
-COPY bot_new.py ./bot_new.py
+COPY bot.py ./bot.py
 
 # Create non-root user for security
 RUN useradd -m -u 1000 botuser && chown -R botuser:botuser /app
@@ -32,4 +32,4 @@ HEALTHCHECK --interval=60s --timeout=10s --start-period=20s --retries=3 \
     CMD python -c "import sqlite3; sqlite3.connect('/app/data/reddit_bot.db').execute('SELECT 1')" || exit 1
 
 # Run the bot
-CMD ["python", "bot_new.py"]
+CMD ["python", "bot.py"]
