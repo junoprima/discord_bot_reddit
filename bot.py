@@ -1,5 +1,7 @@
 import asyncio
 import logging
+import os
+from datetime import datetime
 from typing import Dict, Any
 import discord
 from discord.ext import commands, tasks
@@ -17,15 +19,16 @@ setup_logging()
 logger = logging.getLogger(__name__)
 
 class RedditBot(commands.Bot):
-    """Main Reddit Discord Bot class with improved structure"""
+    """Main Reddit Discord Bot class with cogs-based architecture"""
     
     def __init__(self):
         self.settings = get_settings()
+        self.startup_time = datetime.now()
         
         # Initialize Discord bot
         intents = discord.Intents.default()
         intents.message_content = True
-        super().__init__(command_prefix="/", intents=intents)
+        super().__init__(command_prefix="!", intents=intents)  # Prefix for text commands (if any)
         
         # Initialize services
         self.db_manager = DatabaseManager()
@@ -34,6 +37,14 @@ class RedditBot(commands.Bot):
         
         # Cache for channel configs
         self.channel_configs: Dict[str, Dict[str, Any]] = {}
+    
+    @property
+    def uptime(self):
+        """Get bot uptime as a formatted string"""
+        delta = datetime.now() - self.startup_time
+        hours, remainder = divmod(int(delta.total_seconds()), 3600)
+        minutes, seconds = divmod(remainder, 60)
+        return f"{hours}h {minutes}m {seconds}s"
     
     async def setup_hook(self):
         """Setup hook called when bot is ready"""
@@ -47,10 +58,39 @@ class RedditBot(commands.Bot):
         # Load channel configs into cache
         await self.load_channel_configs()
         
+        # Load all cogs
+        await self.load_cogs()
+        
         # Start periodic tasks
         self.reddit_fetch_task.start()
         
         logger.info("Bot setup completed")
+    
+    async def load_cogs(self):
+        """Load all cogs from the cogs directory"""
+        cogs_dir = "cogs"
+        cog_files = [
+            "reddit_commands",
+            "bot_management", 
+            "admin_commands"
+        ]
+        
+        loaded_cogs = []
+        failed_cogs = []
+        
+        for cog_file in cog_files:
+            try:
+                await self.load_extension(f"{cogs_dir}.{cog_file}")
+                loaded_cogs.append(cog_file)
+                logger.info(f"✅ Loaded cog: {cog_file}")
+            except Exception as e:
+                failed_cogs.append(f"{cog_file}: {e}")
+                logger.error(f"❌ Failed to load cog {cog_file}: {e}")
+        
+        logger.info(f"Cogs loaded: {len(loaded_cogs)} success, {len(failed_cogs)} failed")
+        
+        if failed_cogs:
+            logger.warning(f"Failed cogs: {failed_cogs}")
     
     async def load_channel_configs(self):
         """Load all channel configurations into memory cache"""
@@ -277,146 +317,6 @@ class RedditBot(commands.Bot):
 
 # Create bot instance
 bot = RedditBot()
-
-@bot.tree.command(name="subscribe", description="Subscribe a channel to a subreddit")
-@app_commands.describe(subreddit="The subreddit to subscribe to", channel="The channel to post updates in (optional, defaults to current channel)")
-async def subscribe(interaction: discord.Interaction, subreddit: str, channel: discord.TextChannel = None):
-    await interaction.response.defer(ephemeral=True)
-    
-    # Default to current channel if not specified
-    if channel is None:
-        channel = interaction.channel
-    
-    try:
-        # Fetch subreddit details
-        subreddit_details = await bot.reddit_service.fetch_subreddit_details(subreddit)
-        
-        # Create or update webhook
-        webhook_url = await bot.webhook_service.get_or_create_webhook(
-            channel=channel,
-            bot_user=bot.user,
-            subreddit_name=subreddit,
-            bot_name=subreddit_details["name"],
-            bot_avatar=subreddit_details["icon"]
-        )
-        
-        if not webhook_url:
-            await interaction.followup.send(
-                f"Failed to create webhook for {channel.mention}. Check permissions.", 
-                ephemeral=True
-            )
-            return
-        
-        # Update database and cache with comprehensive server info
-        config_data = {
-            "subreddit": subreddit,
-            "webhook_url": webhook_url,
-            "bot_name": subreddit_details["name"],
-            "bot_avatar": subreddit_details["icon"],
-            "guild_id": str(channel.guild.id),
-            "guild_name": channel.guild.name,
-            "channel_name": channel.name,
-            "added_by_user": f"{interaction.user.name}#{interaction.user.discriminator}",
-            "server_owner_id": str(channel.guild.owner_id) if channel.guild.owner_id else None,
-            "server_owner_name": channel.guild.owner.name if channel.guild.owner else None,
-            "server_member_count": channel.guild.member_count,
-            "server_created_at": channel.guild.created_at.isoformat(),
-            "server_region": str(channel.guild.preferred_locale) if channel.guild.preferred_locale else None,
-            "server_verification_level": channel.guild.verification_level.value,
-            "total_server_channels": len(channel.guild.channels),
-        }
-        
-        await bot.update_channel_config_cache(str(channel.id), config_data)
-        
-        await interaction.followup.send(
-            f"Successfully subscribed to r/{subreddit} in {channel.mention}!", 
-            ephemeral=True
-        )
-        
-    except Exception as e:
-        logger.error(f"Error in subscribe command: {e}")
-        await interaction.followup.send(f"Failed to subscribe: {e}", ephemeral=True)
-
-@bot.tree.command(name="unsubscribe", description="Unsubscribe a channel from its subreddit")
-async def unsubscribe(interaction: discord.Interaction, channel: discord.TextChannel):
-    await interaction.response.defer(ephemeral=True)
-    
-    try:
-        channel_id = str(channel.id)
-        
-        # Delete from database
-        await bot.db_manager.delete_channel_config(channel_id)
-        
-        # Remove from cache
-        bot.channel_configs.pop(channel_id, None)
-        
-        await interaction.followup.send(f"Unsubscribed {channel.mention} successfully!", ephemeral=True)
-        
-    except Exception as e:
-        logger.error(f"Error in unsubscribe command: {e}")
-        await interaction.followup.send(f"Failed to unsubscribe: {e}", ephemeral=True)
-
-@bot.tree.command(name="change_avatar", description="Change the bot's avatar for a specific channel")
-@app_commands.describe(channel="The channel to update (optional, defaults to current channel)", image_url="URL of the new avatar image")
-async def change_avatar(interaction: discord.Interaction, image_url: str, channel: discord.TextChannel = None):
-    await interaction.response.defer(ephemeral=True)
-    
-    # Default to current channel if not specified
-    if channel is None:
-        channel = interaction.channel
-    
-    try:
-        channel_id = str(channel.id)
-        
-        if channel_id not in bot.channel_configs:
-            await interaction.followup.send(f"{channel.mention} is not subscribed to any subreddit.", ephemeral=True)
-            return
-        
-        # Update database and cache
-        await bot.update_channel_config_cache(channel_id, {"bot_avatar": image_url})
-        
-        # Update webhook
-        await bot.webhook_service.get_or_create_webhook(
-            channel=channel,
-            bot_user=bot.user,
-            bot_name=bot.channel_configs[channel_id]["bot_name"],
-            bot_avatar=image_url
-        )
-        
-        await interaction.followup.send(f"Avatar updated for {channel.mention}!", ephemeral=True)
-        
-    except Exception as e:
-        logger.error(f"Error in change_avatar command: {e}")
-        await interaction.followup.send(f"Failed to change avatar: {e}", ephemeral=True)
-
-@bot.tree.command(name="change_name", description="Change the bot's name for a specific channel")
-@app_commands.describe(channel="The channel to update", name="The new name for the bot")
-async def change_name(interaction: discord.Interaction, channel: discord.TextChannel, name: str):
-    await interaction.response.defer(ephemeral=True)
-    
-    try:
-        channel_id = str(channel.id)
-        
-        if channel_id not in bot.channel_configs:
-            await interaction.followup.send(f"{channel.mention} is not subscribed to any subreddit.", ephemeral=True)
-            return
-        
-        # Update database and cache
-        await bot.update_channel_config_cache(channel_id, {"bot_name": name})
-        
-        # Update webhook
-        await bot.webhook_service.get_or_create_webhook(
-            channel=channel,
-            bot_user=bot.user,
-            bot_name=name,
-            bot_avatar=bot.channel_configs[channel_id]["bot_avatar"]
-        )
-        
-        await interaction.followup.send(f"Name updated to `{name}` for {channel.mention}!", ephemeral=True)
-        
-    except Exception as e:
-        logger.error(f"Error in change_name command: {e}")
-        await interaction.followup.send(f"Failed to change name: {e}", ephemeral=True)
 
 async def main():
     """Main entry point"""
