@@ -156,10 +156,207 @@ class AdminCommands(commands.Cog):
             logger.error(f"Error refreshing configs: {e}")
             await interaction.followup.send(f"Failed to refresh configs: {e}", ephemeral=True)
 
+    @app_commands.command(name="server_analytics", description="Show detailed server analytics (Admin only)")
+    @is_bot_owner()
+    async def server_analytics(self, interaction: discord.Interaction):
+        """Display comprehensive server analytics dashboard"""
+        await interaction.response.defer(ephemeral=True)
+        
+        try:
+            # Get server analytics data
+            analytics_data = await self.bot.db_manager.get_server_analytics()
+            
+            if not analytics_data:
+                await interaction.followup.send(
+                    "No server analytics data available yet. Make sure to run the server tracking migration first.", 
+                    ephemeral=True
+                )
+                return
+            
+            embed = discord.Embed(
+                title="📊 Discord Server Analytics Dashboard",
+                color=discord.Color.gold()
+            )
+            
+            # Summary stats
+            total_servers = len(analytics_data)
+            total_members = sum(server.get('member_count', 0) for server in analytics_data)
+            total_subscriptions = sum(server.get('active_subscriptions', 0) for server in analytics_data)
+            
+            embed.add_field(
+                name="📈 Overview",
+                value=f"**Total Servers:** {total_servers}\n**Total Members:** {total_members:,}\n**Total Subscriptions:** {total_subscriptions}",
+                inline=True
+            )
+            
+            # Top servers by members
+            top_servers = sorted(analytics_data, key=lambda x: x.get('member_count', 0), reverse=True)[:5]
+            top_servers_text = ""
+            for i, server in enumerate(top_servers, 1):
+                name = server.get('guild_name', 'Unknown')[:20]
+                members = server.get('member_count', 0)
+                subs = server.get('active_subscriptions', 0)
+                top_servers_text += f"{i}. **{name}** - {members:,} members, {subs} subs\n"
+            
+            embed.add_field(
+                name="🏆 Top Servers by Members",
+                value=top_servers_text or "No data available",
+                inline=True
+            )
+            
+            # Most active servers by subscriptions
+            active_servers = sorted(analytics_data, key=lambda x: x.get('active_subscriptions', 0), reverse=True)[:5]
+            active_servers_text = ""
+            for i, server in enumerate(active_servers, 1):
+                if server.get('active_subscriptions', 0) > 0:
+                    name = server.get('guild_name', 'Unknown')[:20]
+                    subs = server.get('active_subscriptions', 0)
+                    members = server.get('member_count', 0)
+                    active_servers_text += f"{i}. **{name}** - {subs} subs, {members:,} members\n"
+            
+            embed.add_field(
+                name="⚡ Most Active Servers",
+                value=active_servers_text or "No active servers",
+                inline=False
+            )
+            
+            embed.set_footer(text=f"Data from {len(self.bot.guilds)} connected servers")
+            
+            await interaction.followup.send(embed=embed, ephemeral=True)
+            
+        except Exception as e:
+            logger.error(f"Error in server_analytics command: {e}")
+            await interaction.followup.send(f"Failed to get server analytics: {e}", ephemeral=True)
+
+    @app_commands.command(name="update_server_info", description="Update server information for all connected servers (Admin only)")
+    @is_bot_owner()
+    async def update_server_info(self, interaction: discord.Interaction):
+        """Force update server information for all connected servers"""
+        await interaction.response.defer(ephemeral=True)
+        
+        try:
+            updated_count = 0
+            
+            for guild in self.bot.guilds:
+                try:
+                    await self.bot._record_server_info(guild)
+                    updated_count += 1
+                except Exception as e:
+                    logger.error(f"Failed to update server info for {guild.name}: {e}")
+            
+            await interaction.followup.send(
+                f"✅ Updated server information for {updated_count}/{len(self.bot.guilds)} servers", 
+                ephemeral=True
+            )
+            logger.info(f"Server info updated by {interaction.user}: {updated_count} servers")
+            
+        except Exception as e:
+            logger.error(f"Error updating server info: {e}")
+            await interaction.followup.send(f"Failed to update server info: {e}", ephemeral=True)
+
+    @app_commands.command(name="setup_analytics", description="Setup server analytics database (Admin only)")
+    @is_bot_owner()
+    async def setup_analytics(self, interaction: discord.Interaction):
+        """Setup server analytics database schema"""
+        await interaction.response.defer(ephemeral=True)
+        
+        try:
+            # Import and run the simple server tracking migration
+            import sqlite3
+            import os
+            
+            db_path = self.bot.settings.database_path
+            if not os.path.exists(db_path):
+                await interaction.followup.send("❌ Database file not found!", ephemeral=True)
+                return
+            
+            conn = sqlite3.connect(db_path)
+            cursor = conn.cursor()
+            
+            # Check existing columns
+            cursor.execute("PRAGMA table_info(channel_configs)")
+            existing_columns = [row[1] for row in cursor.fetchall()]
+            
+            # Add server tracking columns
+            simple_columns = [
+                ("guild_id", "TEXT"),
+                ("guild_name", "TEXT"), 
+                ("channel_name", "TEXT"),
+                ("server_owner_id", "TEXT"),
+                ("server_owner_name", "TEXT"),
+                ("server_member_count", "INTEGER"),
+                ("server_created_at", "TEXT"),
+                ("bot_joined_at", "TEXT"),
+                ("added_by_user", "TEXT"),
+                ("server_region", "TEXT"),
+                ("server_verification_level", "INTEGER"),
+                ("total_server_channels", "INTEGER"),
+            ]
+            
+            added_count = 0
+            
+            for col_name, col_type in simple_columns:
+                if col_name not in existing_columns:
+                    try:
+                        cursor.execute(f"ALTER TABLE channel_configs ADD COLUMN {col_name} {col_type}")
+                        added_count += 1
+                    except Exception as e:
+                        logger.error(f"Failed to add column {col_name}: {e}")
+            
+            # Create server analytics table
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS server_analytics (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    guild_id TEXT NOT NULL,
+                    guild_name TEXT,
+                    member_count INTEGER DEFAULT 0,
+                    total_channels INTEGER DEFAULT 0,
+                    total_subscriptions INTEGER DEFAULT 0,
+                    bot_added_at TEXT,
+                    last_updated TEXT,
+                    is_active INTEGER DEFAULT 1,
+                    UNIQUE(guild_id) ON CONFLICT REPLACE
+                )
+            """)
+            
+            # Create indexes
+            indexes = [
+                "CREATE INDEX IF NOT EXISTS idx_channel_configs_guild ON channel_configs(guild_id)",
+                "CREATE INDEX IF NOT EXISTS idx_server_analytics_guild ON server_analytics(guild_id)",
+            ]
+            
+            for index_sql in indexes:
+                cursor.execute(index_sql)
+            
+            conn.commit()
+            conn.close()
+            
+            # Update current server info
+            for guild in self.bot.guilds:
+                await self.bot._record_server_info(guild)
+            
+            await interaction.followup.send(
+                f"✅ Server analytics setup complete!\n"
+                f"• Added {added_count} new columns\n"
+                f"• Created server_analytics table\n"
+                f"• Updated info for {len(self.bot.guilds)} servers\n"
+                f"• Use `/server_analytics` to view data", 
+                ephemeral=True
+            )
+            
+            logger.info(f"Server analytics setup completed by {interaction.user}")
+            
+        except Exception as e:
+            logger.error(f"Error setting up analytics: {e}")
+            await interaction.followup.send(f"Failed to setup analytics: {e}", ephemeral=True)
+
     @force_sync.error
     @reload_cogs.error
     @bot_status.error
     @force_refresh.error
+    @server_analytics.error
+    @update_server_info.error
+    @setup_analytics.error
     async def admin_command_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
         """Handle errors in admin commands"""
         if isinstance(error, app_commands.CheckFailure):
