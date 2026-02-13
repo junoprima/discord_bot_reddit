@@ -27,14 +27,14 @@ services:
   # SQLite Web UI for database management
   # Access at http://your-server-ip:8080
   # WARNING: This exposes your database to the internet - use carefully
-#  sqlite-web:
-#    image: coleifer/sqlite-web
-#    container_name: reddit_bot_db_ui
-#    ports:
-#      - "8080:8080"  # Open to internet for easy access
-#    volumes:
-#      - ./data:/data
-#    command: sqlite_web -H 0.0.0.0 -x /data/reddit_bot.db
-#    restart: unless-stopped
-#    depends_on:
-#      - reddit_feed_bot
+  sqlite-web:
+    image: coleifer/sqlite-web
+    container_name: reddit_bot_db_ui
+    ports:
+      - "8080:8080"  # Open to internet for easy access
+    volumes:
+      - ./data:/data
+    command: sqlite_web -H 0.0.0.0 -x /data/reddit_bot.db
+    restart: unless-stopped
+    depends_on:
+      - reddit_feed_bot
